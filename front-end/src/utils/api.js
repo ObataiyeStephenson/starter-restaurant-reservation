@@ -6,7 +6,7 @@ import formatReservationDate from "./format-reservation-date";
 import formatReservationTime from "./format-reservation-date";
 
 const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+  process.env.REACT_APP_API_BASE_URL || "http://localhost:5001";
 
 /**
  * Defines the default headers for these functions to work with `json-server`
@@ -32,9 +32,11 @@ headers.append("Content-Type", "application/json");
 async function fetchJson(url, options, onCancel) {
   try {
     const response = await fetch(url, options);
+
     if (response.status === 204) {
       return null;
     }
+
     const payload = await response.json();
 
     if (payload.error) {
@@ -51,71 +53,133 @@ async function fetchJson(url, options, onCancel) {
 }
 
 /**
- * Retrieves all existing reservation.
+ * Retrieves all existing reservations.
  * @returns {Promise<[reservation]>}
  *  a promise that resolves to a possibly empty array of reservation saved in the database.
  */
 
 export async function listReservations(params, signal) {
   const url = new URL(`${API_BASE_URL}/reservations`);
-
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.append(key, value.toString());
-    });
-  }
-  return await fetchJson(url, { headers, signal, method: "GET" }, [])
+  Object.entries(params).forEach(([key, value]) =>
+    url.searchParams.append(key, value.toString())
+  );
+  return await fetchJson(url, { headers, signal }, [])
     .then(formatReservationDate)
     .then(formatReservationTime);
 }
 
-export async function editReservation(reservation_id, reservation, signal) {
-  const url = `${API_BASE_URL}/reservations/${reservation_id}`;
+/**
+ * Retrieves a specific reservation.
+ * @returns {Promise<[reservation]>}
+ *  a promise that resolves to a possibly empty object of reservation saved in the database.
+ */
 
-  const body = JSON.stringify({ data: reservation });
-
-  return await fetchJson(url, { headers, signal, method: "PUT", body }, []);
+export async function readReservation(reservation_id, signal) {
+  const url = new URL(`${API_BASE_URL}/reservations/${reservation_id}`);
+  return await fetchJson(url, { headers, signal })
+    .then(formatReservationDate)
+    .then(formatReservationTime);
 }
+
+/**
+ * Creates a new reservation.
+ * @returns {Promise<[reservation]>}
+ *  a promise that resolves to a newly created reservation
+ */
 
 export async function createReservation(reservation, signal) {
-  const url = `${API_BASE_URL}/reservations`;
-
-  const body = JSON.stringify({ data: reservation });
-
-  return await fetchJson(url, { headers, signal, method: "POST", body }, []);
+  const url = new URL(`${API_BASE_URL}/reservations`);
+  const options = {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ data: reservation }),
+    signal,
+  };
+  return await fetchJson(url, options, reservation);
 }
 
-export async function updateReservationStatus(reservation_id, status, signal) {
-  const url = `${API_BASE_URL}/reservations/${reservation_id}/status`;
+export async function updateReservation(reservation, signal) {
+  const url = new URL(
+    `${API_BASE_URL}/reservations/${reservation.reservation_id}`
+  );
+  const options = {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ data: reservation }),
+    signal,
+  };
 
-  const body = JSON.stringify({ data: { status: status } });
-
-  return await fetchJson(url, { headers, signal, method: "PUT", body }, []);
+  return await fetchJson(url, options, reservation);
 }
+
+export async function cancelReservation(reservation_id, signal) {
+  const url = new URL(`${API_BASE_URL}/reservations/${reservation_id}/status`);
+  const options = {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ data: { status: "cancelled" } }),
+    signal,
+  };
+  return await fetchJson(url, options, { reservation_id });
+}
+
+/*
+   TABLES API CALLS 
+ */
+
+/**
+ * Creates a new table.
+ * @returns {Promise<[table]>}
+ *  a promise that resolves to a newly created table
+ */
+
+export async function createTable(table, signal) {
+  const url = new URL(`${API_BASE_URL}/tables`);
+  const options = {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ data: table }),
+    signal,
+  };
+  return await fetchJson(url, options, table);
+}
+
+/**
+ * Retrieves all existing tables.
+ * @returns {Promise<[table]>}
+ *  a promise that resolves to a possibly empty array of tables saved in the database.
+ */
 
 export async function listTables(signal) {
   const url = `${API_BASE_URL}/tables`;
-
   return await fetchJson(url, { headers, signal }, []);
 }
 
-export async function createTable(table, signal) {
-  const url = `${API_BASE_URL}/tables`;
+/**
+ * Updates an existing existing table.
+ * @returns {Promise<[table]>}
+ *  a promise that resolves to a possibly empty array of tables saved in the database.
+ */
 
-  const body = JSON.stringify({ data: table });
+export async function updateTable(tableAndReservationIDs, signal) {
+  const { table_id, reservation_id } = tableAndReservationIDs;
+  const url = new URL(`${API_BASE_URL}/tables/${table_id}/seat`);
+  const options = {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ data: { reservation_id } }),
+    signal,
+  };
 
-  return await fetchJson(url, { headers, signal, method: "POST", body }, []);
+  return await fetchJson(url, options, tableAndReservationIDs);
 }
 
-export async function seatTable(reservation_id, table_id, signal) {
+export async function finishTable(table_id, reservation_id) {
   const url = `${API_BASE_URL}/tables/${table_id}/seat`;
-
-  const body = JSON.stringify({ data: { reservation_id: reservation_id } });
-  return await fetchJson(url, { headers, signal, method: "PUT", body }, []);
-}
-
-export async function cleanTable(table_id, signal) {
-  const url = `${API_BASE_URL}/tables/${table_id}/seat`;
-
-  return await fetchJson(url, { headers, signal, method: "DELETE" }, []);
+  const options = {
+    method: "DELETE",
+    headers,
+    body: JSON.stringify({ data: { reservation_id } }),
+  };
+  return await fetchJson(url, options, {});
 }

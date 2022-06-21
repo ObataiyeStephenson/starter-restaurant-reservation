@@ -1,9 +1,14 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import {
+  listReservations,
+  listTables,
+  finishTable,
+  cancelReservation,
+} from "../utils/api";
+// import { useHistory } from "react-router-dom";
 import ErrorAlert from "../layout/ErrorAlert";
-import { useHistory } from "react-router-dom";
-import { previous, today, next } from "../utils/date-time";
-import ReservationRow from "./reservationRow";
-import TableRow from "./tableRow";
+import ReservationList from "./ReservationList";
+import TablesList from "./TablesList";
 
 /**
  * Defines the dashboard page.
@@ -11,107 +16,64 @@ import TableRow from "./tableRow";
  *  the date for which the user wants to view reservations.
  * @returns {JSX.Element}
  */
+function Dashboard({ date }) {
+  const [reservations, setReservations] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [reservationsError, setReservationsError] = useState(null);
+  const [tablesError, setTablesError] = useState(null);
+  // const history = useHistory();
 
-function Dashboard({
-  date,
-  reservations,
-  reservationsError,
-  tables,
-  tablesError,
-  loadDashboard,
-}) {
-  const history = useHistory();
+  useEffect(loadDashboard, [date]);
 
-  const reservationsJSX = () => {
-    return reservations.map((reservation) => (
-      <ReservationRow
-        key={reservation.reservation_id}
-        reservation={reservation}
-        loadDashboard={loadDashboard}
-      />
-    ));
-  };
-  const tablesJSX = () => {
-    return tables.map((table) => (
-      <TableRow
-        key={table.table_id}
-        loadDashboard={loadDashboard}
-        table={table}
-      />
-    ));
-  };
-  //change the date to US friendly
-  const formatDate = (date) => {
-    let splitDate = date.split("-");
-    console.log(splitDate);
-    return `${splitDate[1]}/${splitDate[2]}/${splitDate[0]}`;
-  };
+  function loadDashboard() {
+    const abortController = new AbortController();
+    setReservationsError(null);
+    listReservations({ date }, abortController.signal)
+      .then(setReservations)
+      .catch(setReservationsError);
+
+    setTablesError(null);
+    listTables(abortController.signal).then(setTables).catch(setTablesError);
+    return () => abortController.abort();
+  }
+
+  function onFinish(table_id, reservation_id) {
+    finishTable(table_id, reservation_id).then(loadDashboard);
+  }
+
+  function onCancel(reservation_id) {
+    cancelReservation(reservation_id)
+      .then(loadDashboard)
+      .catch(setReservationsError);
+  }
+
+  console.log(reservations);
 
   return (
     <main>
-      <h1>Dashboard</h1>
-      <div className="btn-group m-1" role="group">
-        <button
-          type="button"
-          className="btn btn-outline-primary btn-sm"
-          onClick={() => history.push(`/dashboard?date=${previous(date)}`)}
-        >
-          Prev.
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline-primary btn-sm"
-          onClick={() => history.push(`/dashboard?date=${today()}`)}
-        >
-          Today
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline-primary btn-sm"
-          onClick={() => history.push(`/dashboard?date=${next(date)}`)}
-        >
-          Next
-        </button>
+      <div className="row">
+        <div className="col">
+          <h1>Dashboard</h1>
+          <div className="d-md-flex mb-3">
+            <h4 className="mb-0">Reservations for {date}</h4>
+          </div>
+        </div>
       </div>
-      <div className="d-md-flex mb-3">
-        <h4 className="mb-0">Reservations for {formatDate(date)}</h4>
+      <div className="row">
+        <div className="col">
+          <ErrorAlert error={reservationsError} />
+          <ErrorAlert error={tablesError} />
+        </div>
       </div>
-      <ErrorAlert error={reservationsError} />
-      <table className="table table-hover ">
-        <thead className="shadow-sm">
-          <tr>
-            <th scope="col">ID</th>
-            <th scope="col">First Name</th>
-            <th scope="col">Last Name</th>
-            <th scope="col">Mobile Number</th>
-            <th scope="col">Time</th>
-            <th scope="col">People</th>
-            <th scope="col">Status</th>
-            <th scope="col">Edit</th>
-            <th scope="col">Cancel</th>
-            <th scope="col">Seat</th>
-          </tr>
-        </thead>
-        <tbody>{reservationsJSX()}</tbody>
-      </table>
-
-      <div className="d-md-flex mb-3">
-        <h4 className="mb-0">Tables</h4>
+      <div className="row">
+        {/* {JSON.stringify(reservations)} */}
+        <ReservationList
+          reservations={reservations}
+          date={date}
+          onCancel={onCancel}
+        />
+        <TablesList tables={tables} onFinish={onFinish} />
       </div>
-      <ErrorAlert error={tablesError} />
-
-      <table className="table">
-        <thead className="shadow-sm">
-          <tr>
-            <th scope="col">ID</th>
-            <th scope="col">Table Name</th>
-            <th scope="col">Capacity</th>
-            <th scope="col">Status</th>
-          </tr>
-        </thead>
-
-        <tbody>{tablesJSX()}</tbody>
-      </table>
     </main>
   );
 }
